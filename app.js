@@ -6,12 +6,13 @@ var logger = require("morgan");
 
 var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
+var roomRouter = require("./routes/room");
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 dotenv.config();
 pw = process.env.PW;
-const DB_URL = `mongodb+srv://feelGood:${pw}@express-mongodb.antwmvy.mongodb.net/express-mongodb`;
+const DB_URL = `mongodb+srv://feelGood:${pw}@express-mongodb.antwmvy.mongodb.net/neukkim-good`;
 mongoose
   .connect(DB_URL, {
     retryWrites: true,
@@ -39,6 +40,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/", indexRouter);
 app.use("/users", usersRouter);
+app.use("/room", roomRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
