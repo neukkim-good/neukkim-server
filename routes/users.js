@@ -2,7 +2,6 @@ var express = require("express");
 const User = require("../models/User");
 const { createToken, verifyToken } = require("../utils/auth");
 var router = express.Router();
-var cors = require("cors");
 
 /* GET users listing. */
 router.get("/", function (req, res, next) {
@@ -11,9 +10,9 @@ router.get("/", function (req, res, next) {
 
 router.post("/signup", async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, nickname } = req.body;
     console.log(req.body);
-    const user = await User.signUp(email, password);
+    const user = await User.signUp(email, password, nickname);
     res.status(201).json(user);
   } catch (err) {
     console.error(err);
