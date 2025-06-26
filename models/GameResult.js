@@ -1,9 +1,31 @@
 const mongoose = require("mongoose");
 
 const gameResultSchema = new mongoose.Schema({
-  roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", required: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  room_id: { type: mongoose.Types.ObjectId, required: true, ref: "Room" },
+  user_id: { type: mongoose.Types.ObjectId, required: true, ref: "User" },
   score: { type: Number, default: 0 },
 });
 const GameResult = mongoose.model("GameResult", gameResultSchema);
 module.exports = GameResult;
+
+// const mongoose = require("mongoose");
+
+// const recordSchema = new mongoose.Schema({
+//   user_id: {
+//     type: mongoose.Types.ObjectId,
+//     required: true,
+//     ref: "User",
+//   },
+//   score: {
+//     type: Number,
+//     default: 0,
+//   },
+//   time: {
+//     type: Date,
+//     default: Date.now,
+//   },
+// });
+
+// const Record = mongoose.model("Record", recordSchema, "Record");
+
+// module.exports = Record;

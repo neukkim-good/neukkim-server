@@ -9,6 +9,7 @@ var indexRouter = require("./routes/index");
 var usersRouter = require("./routes/users");
 var roomRouter = require("./routes/room");
 var rankingRouter = require("./routes/ranking");
+var myPageRouter = require("./routes/mypage");
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -52,6 +53,7 @@ app.use("/", indexRouter);
 app.use("/users", usersRouter);
 app.use("/room", roomRouter);
 app.use("/ranking", rankingRouter);
+app.use("/mypage", myPageRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
