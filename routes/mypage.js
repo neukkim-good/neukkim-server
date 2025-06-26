@@ -1,4 +1,5 @@
 var express = require("express");
+const mongoose = require("mongoose");
 var router = express.Router();
 const User = require("../models/User");
 const Record = require("../models/Record");
@@ -6,6 +7,7 @@ const GameResult = require("../models/GameResult");
 const Room = require("../models/Room");
 const { authenticate } = require("../middleware/auth");
 router.use(authenticate);
+
 // 오늘 최고 기록 / 주간 최고 기록 / 주간 평균 기록
 // 개인 기록                    내기 기록
 // 2020.10.10.14:00 120점      2020. 10. 10. 14:00 방제목 멤버:() 등수:() 120점
@@ -16,8 +18,11 @@ router.get("/record", async function (req, res) {
   try {
     // 변경 전: const { userId } = req.params;
     const userId = req.user._id; // 변경 후: 토큰에서 인증된 사용자 ID를 가져옵니다.
-
-    const records = await Record.find({ user_id: userId }).sort({ time: -1 });
+    const userIdString = userId.toString();
+    const records = await Record.find({ user_id: userIdString }).sort({
+      time: -1,
+    });
+    //console.log(records);
     res.status(200).json(records);
   } catch (error) {
     console.error(error);
@@ -25,60 +30,69 @@ router.get("/record", async function (req, res) {
   }
 });
 
-//mypage에서 내 내기기록 가져오기
-//userId로 gameresult를 조회, gameresult의 roomId로 Room을 조회 후 title, endtime가져옴
-//Gameresult 중 roomId가 일치하는 컬럼들을 찾아서
-// 그 컬럼들의 userId로 usernickname을 찾는다.
-// 그 컬럼들의 점수를 비교하여 등수를 찾는다.
-// mypage에서 내 내기기록 가져오기
 router.get("/gameresult", async function (req, res) {
-  // 변경 전: /gameresult/:userId
   try {
-    // 변경 전: const { userId } = req.params;
-    const userId = req.user._id; // 변경 후: 토큰에서 인증된 사용자 ID를 가져옵니다.
-
-    const myGameResults = await GameResult.find({ userId: userId }).sort({
-      time: -1,
+    // 1. 토큰에서 사용자 ID (ObjectId)를 가져옵니다.
+    const userIdObject = req.user._id;
+    console.log(userIdObject);
+    // 2. 해당 사용자가 참여한 모든 게임 결과를 DB에서 찾습니다.
+    const myGameResults = await GameResult.find({
+      user_id: userIdObject,
+    }).sort({
+      _id: -1, // 최신 게임부터 정렬
     });
-
+    console.log(`GameResult: ${myGameResults}`);
     if (!myGameResults || myGameResults.length === 0) {
-      return res.status(200).json([]);
+      return res.status(200).json([]); // 결과가 없으면 빈 배열 반환
     }
 
-    const detailedResults = [];
-
-    for (const myResult of myGameResults) {
-      const roomInfo = await Room.findById(myResult.roomId);
-      if (!roomInfo) continue;
+    // 3. 각 게임 결과에 대한 상세 정보를 병렬로 처리하여 가져옵니다.
+    const detailedResultsPromises = myGameResults.map(async (myResult) => {
+      const roomInfo = await Room.findById(myResult.room_id);
+      if (!roomInfo) return null; // 방 정보가 없으면 이 결과는 건너뜀
 
       const allPlayersInRoom = await GameResult.find({
-        roomId: myResult.roomId,
+        room_id: myResult.room_id,
       })
-        .populate("userId", "nickname")
-        .sort({ score: -1 });
+        .populate("user_id", "nickname")
+        .sort({ score: -1 }); // 점수 내림차순 (랭킹)
 
       const myRank =
-        allPlayersInRoom.findIndex((p) => p.userId._id.toString() === userId) +
-        1;
+        allPlayersInRoom.findIndex(
+          (p) =>
+            p.user_id && p.user_id._id.toString() === userIdObject.toString()
+        ) + 1;
 
-      detailedResults.push({
-        roomId: roomInfo._id,
+      if (myRank === 0) return null; // 데이터 오류로 방에 내가 없으면 제외
+
+      // --- [수정] 프론트엔드 타입 정의에 맞춰 응답 객체 구성 ---
+      return {
+        result_id: myResult._id.toString(), // 추가: GameResult 문서의 고유 ID
         title: roomInfo.title,
-        endtime: roomInfo.endtime,
+        endTime: roomInfo.endTime,
+        totalParticipants: allPlayersInRoom.length,
         myRank: myRank,
         myScore: myResult.score,
-        totalParticipants: allPlayersInRoom.length,
         participants: allPlayersInRoom.map((player, index) => ({
-          nickname: player.userId.nickname,
+          nickname: player.user_id
+            ? player.user_id.nickname
+            : "알 수 없는 유저",
           score: player.score,
           rank: index + 1,
         })),
-      });
-    }
+        room_id: roomInfo._id.toString(), // 수정: 필드명 변경 (roomId -> room_id)
+        user_id: userIdObject.toString(), // 추가: 내 사용자 ID
+        score: myResult.score, // 추가: 내 점수 (myScore와 동일)
+      };
+    });
+
+    const detailedResults = (await Promise.all(detailedResultsPromises)).filter(
+      (result) => result !== null
+    );
 
     res.status(200).json(detailedResults);
   } catch (error) {
-    console.error(error);
+    console.error("Error in /gameresult:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
