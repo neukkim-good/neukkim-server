@@ -5,8 +5,8 @@ const User = require("../models/User");
 const Record = require("../models/Record");
 const GameResult = require("../models/GameResult");
 const Room = require("../models/Room");
-//const { authenticate } = require("../middleware/auth");
-//router.use(authenticate);
+const { authenticate } = require("../middleware/auth");
+router.use(authenticate);
 
 // 오늘 최고 기록 / 주간 최고 기록 / 주간 평균 기록
 // 개인 기록                    내기 기록
@@ -18,15 +18,7 @@ router.get("/record", async function (req, res) {
   try {
     // 변경 전: const { userId } = req.params;
     const userId = req.user._id; // 변경 후: 토큰에서 인증된 사용자 ID를 가져옵니다.
-    console.log(userId);
     const userIdString = userId.toString();
-    console.log(`\n--- API 요청 감지 ---`);
-    console.log(
-      `요청 클라이언트: ${req.headers["user-agent"].slice(0, 30)}...`
-    ); // 브라우저인지 Postman인지 식별
-    console.log(`서버가 인식한 사용자 ID: ${userIdString}`);
-    console.log(`--------------------\n`);
-    console.log(userIdString);
     const records = await Record.find({ user_id: userIdString }).sort({
       time: -1,
     });
@@ -49,7 +41,7 @@ router.get("/gameresult", async function (req, res) {
     }).sort({
       _id: -1, // 최신 게임부터 정렬
     });
-    console.log(`???????????${myGameResults}`);
+    console.log(`GameResult: ${myGameResults}`);
     if (!myGameResults || myGameResults.length === 0) {
       return res.status(200).json([]); // 결과가 없으면 빈 배열 반환
     }
@@ -77,7 +69,7 @@ router.get("/gameresult", async function (req, res) {
       return {
         result_id: myResult._id.toString(), // 추가: GameResult 문서의 고유 ID
         title: roomInfo.title,
-        endtime: roomInfo.endtime,
+        endTime: roomInfo.endTime,
         totalParticipants: allPlayersInRoom.length,
         myRank: myRank,
         myScore: myResult.score,
