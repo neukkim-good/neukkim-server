@@ -1,4 +1,6 @@
-var express = require('express');
+var express = require("express");
+const User = require("../models/User");
+const { createToken, verifyToken } = require("../utils/auth");
 var router = express.Router();
 
 /* GET users listing. */
