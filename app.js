@@ -32,7 +32,7 @@ var app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000", // 클라이언트 주소
+    origin: "http://3.34.95.59:3000", // 클라이언트 주소
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
@@ -67,6 +67,26 @@ app.use(function (err, req, res, next) {
   // render the error page
   res.status(err.status || 500);
   res.render("error");
+});
+
+var http = require("http");
+var server = http.Server(app);
+
+var socket = require("socket.io");
+var io = socket(server);
+
+var port = 3002;
+
+io.on("connection", function (socket) {
+  console.log("User Join");
+  socket.on("message", (data) => {
+    console.log("Message received: ", data);
+    socket.broadcast.emit("receive_message", data);
+  });
+});
+
+server.listen(port, function () {
+  console.log("Server is running on port " + port);
 });
 
 module.exports = app;
