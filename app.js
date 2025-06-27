@@ -10,6 +10,7 @@ var usersRouter = require("./routes/users");
 var roomRouter = require("./routes/room");
 var rankingRouter = require("./routes/ranking");
 var myPageRouter = require("./routes/mypage");
+var appleGameRouter = require("./routes/apple-game");
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -33,7 +34,7 @@ var app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000", // 클라이언트 주소
+    origin: ["http://localhost:3000", "http://3.34.95.59:3000"], // 클라이언트 주소
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
@@ -54,6 +55,7 @@ app.use("/users", usersRouter);
 app.use("/room", roomRouter);
 app.use("/ranking", rankingRouter);
 app.use("/mypage", myPageRouter);
+app.use("/apple-game", appleGameRouter);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
