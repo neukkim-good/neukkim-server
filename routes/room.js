@@ -1,29 +1,88 @@
 var express = require("express");
 const Room = require("../models/Room");
+const User = require("../models/User");
 const Participant = require("../models/Participant"); // 추가 필요
+const { verifyToken } = require("../utils/auth");
+const { default: mongoose } = require("mongoose");
 var router = express.Router();
 
 // 방 리스트 출력
 router.get("/", async function (req, res, next) {
   try {
     // 현재 시간보다 이후인 방만 필터링
-    const list = await Room.find({
-      endTime: { $gt: new Date() },
-    });
+    const list = await Room.aggregate([
+      {
+        //우선 날짜가 지나지 않은 방들만 뽑아내기
+        $match: { endTime: { $gt: new Date() } },
+      },
+      {
+        //participant 컬렉션과 조인해서 인원 뽑아내기 방 아이디(_id)를 사용해서.
+        $lookup: {
+          from: "Participant",
+          localField: "_id", //Room의 필드값
+          foreignField: "room_id", //participant의 필드값
+          as: "enteredUser",
+        },
+      },
+      {
+        $addFields: {
+          currentUser: { $size: "$enteredUser" },
+        },
+      },
+      // $project - 불필요한 필드 제거
+      {
+        $project: {
+          enteredUser: 0, // joinedParticipants 배열 제거
+        },
+      },
+    ]);
+    // console.log(list);
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
+//=====================================================
+//Participant 출력 테스트용임
+router.post("/test", async function (req, res, next) {
+  const { room_id } = req.body;
+  const obj_id = new mongoose.Types.ObjectId(room_id);
+  try {
+    const list = await Participant.find({ room_id }); // 조건 없이 전체 출력
+    // console.log(list);
+    res.json({ count: list.length, participants: list });
+  } catch (err) {
+    next(err);
+  }
+});
+
+//=====================================================
 // 방 입장하기
 router.post("/participate/:room_id", async function (req, res, next) {
-  const { user_id } = req.body;
   const { room_id } = req.params;
-  // 현재 방의 참가자 수 확인
+
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "잘못된 토큰 형식입니다." });
+  }
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // 3) 현재 방의 참가자 수 확인
   const participantCount = await Participant.countDocuments({ room_id });
 
-  // 방 정보 가져오기
+  // 4) 방 정보 가져오기
   const room = await Room.findById(room_id);
   if (!room) {
     return res.status(404).json({ error: "방을 찾을 수 없습니다." });
@@ -31,11 +90,11 @@ router.post("/participate/:room_id", async function (req, res, next) {
 
   // 이미 참가한 사용자인지 확인
   const existingParticipant = await Participant.findOne({
-    room_id,
-    user_id,
+    room_id: room_id,
+    user_id: user._id,
   });
   if (existingParticipant) {
-    return res.status(200).json("재입장 했습니다.");
+    return res.status(202).json("재입장 했습니다.");
   }
 
   // 방이 가득 찬 경우
@@ -45,8 +104,8 @@ router.post("/participate/:room_id", async function (req, res, next) {
 
   // 참가자 추가
   const newParticipant = await Participant.create({
-    room_id,
-    user_id,
+    room_id: room_id,
+    user_id: user._id,
   });
 
   res.json({
@@ -55,41 +114,112 @@ router.post("/participate/:room_id", async function (req, res, next) {
   });
 });
 
+//=====================================================
 // 방 만들기
-router.post("/", async function (req, res, next) {
+router.post("/", async (req, res, next) => {
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "잘못된 토큰 형식입니다." });
+  }
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // 3) 방 생성 로직
+  const data = req.body;
+  const appleArr = Array.from(
+    { length: 170 },
+    () => Math.floor(Math.random() * 9) + 1
+  );
+
+  const newRoom = await Room.create({
+    title: data.title,
+    maxUser: data.maxUser,
+    host_id: new mongoose.Types.ObjectId(user._id),
+    endTime: data.endTime,
+    board: appleArr,
+  });
+
+  // 4) 방장도 Participant에 추가
+  const hostParticipant = await Participant.create({
+    room_id: newRoom._id,
+    user_id: newRoom.host_id,
+  });
+
+  res.json({
+    message: "방이 성공적으로 생성되었습니다.",
+    room: newRoom,
+    hostParticipant,
+  });
+});
+
+//=====================================================
+// 내기 방 상세정보 가져오기
+router.get("/:room_id", async (req, res, next) => {
+  const { room_id } = req.params;
+
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "잘못된 토큰 형식입니다." });
+  }
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // console.log("토큰 검증 성공 - 사용자 정보: ", user);
+
   try {
-    const data = req.body;
-
-    const appleArr = [];
-    for (let i = 0; i < 170; i++) {
-      appleArr.push(Math.floor(Math.random() * 9) + 1);
+    // 3) 방 정보 가져오기
+    const room = await Room.findById(room_id);
+    // console.log("방 ID: ", room_id);
+    if (!room) {
+      return res.status(404).json({ error: "방을 찾을 수 없습니다." });
     }
+    // console.log("방 정보: ", room);
 
-    // 방 데이터 생성
-    const newRoom = await Room.create({
-      title: data.title,
-      maxUser: data.maxUser,
-      host_id: data.host_id,
-      endTime: data.endTime,
-      board: appleArr,
-    });
+    // 4) 참가자 정보 가져오기
+    const participants = await Participant.find({ room_id: room._id });
+    console.log("참가자 목록: ", participants);
 
-    // 방 생성 후 자동으로 생성된 _id 사용 가능
-    const room_id = newRoom._id.toString(); // ObjectId를 문자열로 변환
+    // 5) 응답 데이터 생성
+    const userIds = participants.map((p) => p.user_id.toString());
+    const users = await User.find({ _id: { $in: userIds } });
+    // console.log("유저 정보 목록: ", users);
 
-    // Participant 테이블에 호스트 추가
-    const hostParticipant = await Participant.create({
-      room_id: room_id,
-      user_id: data.host_id,
-    });
+    const userList = users.map((u) => u.nickname);
+
+    // console.log("유저 리스트: ", userList);
+    // console.log("사과게임 판: ", room.board);
+
+    const isHost = user._id.toString() === room.host_id.toString();
 
     res.json({
-      message: "방이 성공적으로 생성되었습니다.",
-      room: newRoom,
-      hostParticipant: hostParticipant,
+      is_host: isHost,
+      title: room.title,
+      user_list: userList,
+      board: room.board,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log("방 상세정보 가져오기 실패: ", error);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
   }
 });
 
