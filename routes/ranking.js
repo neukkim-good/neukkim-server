@@ -3,7 +3,6 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Record = require("../models/Record");
 const User = require("../models/User");
-const GameRank = require("../models/GameRank");
 const GameResult = require("../models/GameResult");
 
 router.get("/", async function (req, res, next) {
