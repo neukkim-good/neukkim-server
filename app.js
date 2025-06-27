@@ -34,7 +34,7 @@ var app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:3000", "http://3.34.95.59:3000"], // 클라이언트 주소
+    origin: ["http://13.125.2.253:3000", "http://localhost:3000"], // 클라이언트 주소
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
