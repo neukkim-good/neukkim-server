@@ -1,5 +1,6 @@
 var express = require("express");
 const Room = require("../models/Room");
+const User = require("../models/User");
 const Participant = require("../models/Participant"); // 추가 필요
 const { verifyToken } = require("../utils/auth");
 const { default: mongoose } = require("mongoose");
@@ -35,7 +36,7 @@ router.get("/", async function (req, res, next) {
         },
       },
     ]);
-    console.log(list);
+    // console.log(list);
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -49,7 +50,7 @@ router.post("/test", async function (req, res, next) {
   const obj_id = new mongoose.Types.ObjectId(room_id);
   try {
     const list = await Participant.find({ room_id }); // 조건 없이 전체 출력
-    console.log(list);
+    // console.log(list);
     res.json({ count: list.length, participants: list });
   } catch (err) {
     next(err);
@@ -159,6 +160,67 @@ router.post("/", async (req, res, next) => {
     room: newRoom,
     hostParticipant,
   });
+});
+
+//=====================================================
+// 내기 방 상세정보 가져오기
+router.get("/:room_id", async (req, res, next) => {
+  const { room_id } = req.params;
+
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "잘못된 토큰 형식입니다." });
+  }
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // console.log("토큰 검증 성공 - 사용자 정보: ", user);
+
+  try {
+    // 3) 방 정보 가져오기
+    const room = await Room.findById(room_id);
+    // console.log("방 ID: ", room_id);
+    if (!room) {
+      return res.status(404).json({ error: "방을 찾을 수 없습니다." });
+    }
+    // console.log("방 정보: ", room);
+
+    // 4) 참가자 정보 가져오기
+    const participants = await Participant.find({ room_id: room._id });
+    console.log("참가자 목록: ", participants);
+
+    // 5) 응답 데이터 생성
+    const userIds = participants.map((p) => p.user_id.toString());
+    const users = await User.find({ _id: { $in: userIds } });
+    // console.log("유저 정보 목록: ", users);
+
+    const userList = users.map((u) => u.nickname);
+
+    // console.log("유저 리스트: ", userList);
+    // console.log("사과게임 판: ", room.board);
+
+    const isHost = user._id.toString() === room.host_id.toString();
+
+    res.json({
+      is_host: isHost,
+      title: room.title,
+      user_list: userList,
+      board: room.board,
+    });
+  } catch (error) {
+    console.log("방 상세정보 가져오기 실패: ", error);
+    res.status(500).json({ error: "서버 오류가 발생했습니다." });
+  }
 });
 
 module.exports = router;
