@@ -95,13 +95,86 @@ router.get("/", async function (req, res, next) {
       { $sort: { mean: -1 } },
     ]);
 
+    // 4. GameResult에서 승률 계산
+    // GameResult에는 각 room_id 별 user_id와 score가 저장되어있음
+    // GameResult에서 승리한 사람을 찾기 위해선, 점수별로 정렬한 후에, GameResult에서 room_id별로 최고 점수를 가진 user_id를 찾아야함
+    // 그렇게 하면, room_id에 따른 승리한 사람을 구할 수 있음
+    // winRateRank는 GameResult에서 각 room_id마다 최고 점수를 가진 user_id를 찾아서, 그 user_id의 닉네임과 함께 반환
+
+    // 4.1 sort 해서 우승자 count 하기
+    const gameResults = await GameResult.aggregate([
+      {
+        $group: {
+          _id: "$room_id",
+          winner: { $first: "$user_id" }, // 각 room_id에서 첫 번째 user_id를 우승자로 간주
+          maxScore: { $max: "$score" }, // 최고 점수
+        },
+      },
+      {
+        $lookup: {
+          from: "User",
+          localField: "winner",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $project: {
+          user_id: "$winner",
+          nickname: "$user.nickname",
+          score: "$maxScore",
+        },
+      },
+      { $sort: { score: -1 } }, // 점수 순 정렬
+    ]);
+    // 4.2 승률 계산 배열로 바꿔야함
+    const winRateRank = gameResults.reduce((acc, result) => {
+      const userId = result.user_id.toString();
+      if (!acc[userId]) {
+        acc[userId] = {
+          user_id: userId,
+          nickname: result.nickname,
+          wins: 0,
+          total: 0,
+        };
+      }
+      acc[userId].wins += 1; // 승리 횟수 증가
+      return acc;
+    }, {});
+
+    // 4.3 user_id 별 총 게임 수 계산
+    const totalGames = await GameResult.aggregate([
+      {
+        $group: {
+          _id: "$user_id",
+          total: { $sum: 1 }, // 각 user_id의 총 게임 수
+        },
+      },
+    ]);
+
+    // 4.4 총 게임 수를 활용해 승률 계산
+    const winRateRankArray = Object.values(winRateRank).map((user) => {
+      const totalGame = totalGames.find(
+        (game) => game._id.toString() === user.user_id
+      );
+      const total = totalGame ? totalGame.total : 0;
+      return {
+        _id: user.user_id,
+        user_id: user.user_id,
+        nickname: user.nickname,
+        score:
+          total > 0 ? parseFloat(((user.wins / total) * 100).toFixed(2)) : 0, // 승률 계산
+      };
+    });
+
     res.json({
       dayRank,
       weekRank,
       meanRank,
+      winRateRankArray,
     });
   } catch (err) {
-    console.error(err);
     next(err);
   }
 });
