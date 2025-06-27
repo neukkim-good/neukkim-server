@@ -86,6 +86,7 @@ io.on("connection", function (socket) {
   socket.on("message", (data) => {
     console.log("Message received: ", data);
     socket.broadcast.emit("receive_message", data);
+    console.log(data.token);
   });
 });
 
