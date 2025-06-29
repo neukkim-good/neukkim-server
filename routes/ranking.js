@@ -209,7 +209,19 @@ router.get("/notify", async function (req, res, next) {
           },
         },
       },
-      // 3. user_list 점수 순으로 정렬
+      // 3. Room 컬렉션에서 title 가져오기
+      {
+        $lookup: {
+          from: "Room", // 실제 Room 컬렉션명
+          localField: "_id", // _id가 room_id
+          foreignField: "_id",
+          pipeline: [{ $project: { title: 1, _id: 0 } }],
+          as: "roomInfo",
+        },
+      },
+      { $unwind: "$roomInfo" },
+
+      // 5. user_list 점수 순으로 정렬
       {
         $addFields: {
           user_list: {
@@ -217,7 +229,17 @@ router.get("/notify", async function (req, res, next) {
           },
         },
       },
-      // 4. endTime 최신순으로 그룹 문서 정렬
+      // 6. 사용할 데이터만 추출
+      {
+        $project: {
+          title: "$roomInfo.title",
+          endTime: 1,
+          user_list: 1,
+          _id: 0,
+        },
+      },
+
+      // 7. endTime 최신순으로 그룹 문서 정렬
       { $sort: { endTime: -1 } },
     ]);
     res.json(notifyResult);
