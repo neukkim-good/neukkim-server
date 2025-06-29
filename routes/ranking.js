@@ -154,19 +154,21 @@ router.get("/", async function (req, res, next) {
     ]);
 
     // 4.4 총 게임 수를 활용해 승률 계산
-    const winRateRankArray = Object.values(winRateRank).map((user) => {
-      const totalGame = totalGames.find(
-        (game) => game._id.toString() === user.user_id
-      );
-      const total = totalGame ? totalGame.total : 0;
-      return {
-        _id: user.user_id,
-        user_id: user.user_id,
-        nickname: user.nickname,
-        score:
-          total > 0 ? parseFloat(((user.wins / total) * 100).toFixed(2)) : 0, // 승률 계산
-      };
-    });
+    const winRateRankArray = Object.values(winRateRank)
+      .map((user) => {
+        const totalGame = totalGames.find(
+          (game) => game._id.toString() === user.user_id
+        );
+        const total = totalGame ? totalGame.total : 0;
+        return {
+          _id: user.user_id,
+          user_id: user.user_id,
+          nickname: user.nickname,
+          score:
+            total > 0 ? parseFloat(((user.wins / total) * 100).toFixed(2)) : 0, // 승률 계산
+        };
+      })
+      .sort((a, b) => b.score - a.score);
 
     res.json({
       dayRank,
