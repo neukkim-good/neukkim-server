@@ -215,7 +215,6 @@ router.get("/notify", async function (req, res, next) {
           },
         },
       },
-
       // 4. endTime 최신순으로 그룹 문서 정렬
       { $sort: { endTime: -1 } },
     ]);
