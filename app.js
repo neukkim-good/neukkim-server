@@ -14,6 +14,10 @@ var appleGameRouter = require("./routes/apple-game");
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+
+const jwt = require("jsonwebtoken");
+const SECRET_KEY = "MyJWT";
+
 dotenv.config();
 pw = process.env.PW;
 const DB_URL = `mongodb+srv://feelGood:${pw}@express-mongodb.antwmvy.mongodb.net/neukkim-good`;
@@ -83,10 +87,28 @@ var port = 3002;
 
 io.on("connection", function (socket) {
   console.log("User Join");
+
   socket.on("message", (data) => {
-    console.log("Message received: ", data);
-    socket.broadcast.emit("receive_message", data);
-    console.log(data.token);
+    const { room_id, token, socket_id, message } = data;
+
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const user_id = decoded._id; // 토큰에서 user_id 추출
+
+    // 방 입장 처리
+    socket.join(room_id);
+
+    // 해당 방의 다른 사용자에게 알림
+    socket.to(room_id).emit("user_joined", {
+      user_id: user_id,
+      socket_id,
+      message,
+    });
+
+    console.log(`[${room_id}] User joined:`, user_id);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
   });
 });
 
