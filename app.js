@@ -89,6 +89,7 @@ io.on("connection", function (socket) {
   console.log("User Join");
 
   socket.on("message", (data) => {
+    // ready 누르면
     const { room_id, token, socket_id, message } = data;
 
     const decoded = jwt.verify(token, SECRET_KEY);
@@ -98,13 +99,13 @@ io.on("connection", function (socket) {
     socket.join(room_id);
 
     // 해당 방의 다른 사용자에게 알림
-    socket.to(room_id).emit("user_joined", {
+    io.to(room_id).emit("user_joined", {
       user_id: user_id,
       socket_id,
       message,
     });
 
-    console.log(`[${room_id}] User joined:`, user_id);
+    console.log(`[${room_id}] User joined:`, user_id, socket_id);
   });
 
   socket.on("disconnect", () => {
