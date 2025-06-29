@@ -179,4 +179,50 @@ router.get("/", async function (req, res, next) {
   }
 });
 
+router.get("/notify", async function (req, res, next) {
+  try {
+    const notifyResult = await GameResult.aggregate([
+      // 1. Room 컬렉션에서 endTime 가져오기
+      {
+        $lookup: {
+          from: "User",
+          localField: "user_id",
+          foreignField: "_id",
+          as: "userInfo",
+        },
+      },
+      {
+        $unwind: "$userInfo",
+      },
+      // 2. room_id 별 그룹화하기
+      {
+        $group: {
+          _id: "$room_id",
+          endTime: { $first: "$endTime" },
+          user_list: {
+            $push: {
+              nickname: "$userInfo.nickname",
+              score: "$score",
+            },
+          },
+        },
+      },
+      // 3. user_list 점수 순으로 정렬
+      {
+        $addFields: {
+          user_list: {
+            $sortArray: { input: "$user_list", sortBy: { score: -1 } },
+          },
+        },
+      },
+
+      // 4. endTime 최신순으로 그룹 문서 정렬
+      { $sort: { endTime: -1 } },
+    ]);
+    res.json(notifyResult);
+  } catch {
+    res.status(500);
+  }
+});
+
 module.exports = router;

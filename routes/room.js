@@ -1,6 +1,7 @@
 var express = require("express");
 const Room = require("../models/Room");
 const User = require("../models/User");
+const GameResult = require("../models/GameResult");
 const Participant = require("../models/Participant"); // 추가 필요
 const { verifyToken } = require("../utils/auth");
 const { default: mongoose } = require("mongoose");
@@ -221,6 +222,41 @@ router.get("/:room_id", async (req, res, next) => {
     console.log("방 상세정보 가져오기 실패: ", error);
     res.status(500).json({ error: "서버 오류가 발생했습니다." });
   }
+});
+
+//=====================================================
+// 내기 방 결과 내보내기
+router.post("/:room_id", async (req, res, next) => {
+  const { score } = req.body;
+  const { room_id } = req.params;
+
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers["bearer-token"];
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // console.log("토큰 검증 성공 - 사용자 정보: ", user);
+
+  const result = await GameResult.create({
+    user_id: user._id.toString(),
+    room_id: room_id,
+    score: score,
+    endTime: new Date(), // 이거 room_id로 방 검색해서 endTime 가져와야됨.
+  });
+
+  res.json({
+    message: "내가 결과를 저장 완료",
+    result,
+  });
 });
 
 module.exports = router;
