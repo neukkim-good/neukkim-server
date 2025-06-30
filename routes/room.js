@@ -259,4 +259,35 @@ router.post("/:room_id", async (req, res, next) => {
   });
 });
 
+//=====================================================
+// 방에서 게임을 이미 했는지 확인하기
+router.get("/:room_id/check", async (req, res) => {
+  const { room_id } = req.params;
+
+  // 1) 토큰 꺼내기
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).json({ error: "토큰이 없습니다." });
+  }
+
+  const [scheme, token] = authHeader.split(" ");
+  if (scheme !== "Bearer" || !token) {
+    return res.status(401).json({ error: "잘못된 토큰 형식입니다." });
+  }
+
+  // 2) 토큰 검증
+  const user = verifyToken(token);
+  if (!user) {
+    return res.status(403).json({ error: "유효하지 않은 토큰입니다." });
+  }
+
+  // 3) 방에서 게임 결과 찾기
+  const gameResult = await GameResult.findOne({
+    user_id: user._id.toString(),
+    room_id: room_id,
+  });
+
+  res.json({ already_played: !!gameResult }); // 이미 게임을 했는지 여부를 boolean으로 반환
+});
+
 module.exports = router;

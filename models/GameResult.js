@@ -7,6 +7,7 @@ const gameResultSchema = new mongoose.Schema({
   endTime: { type: Date },
   endTime: { type: Date, required: true }, //endTime 추가
 });
+
 const GameResult = mongoose.model("GameResult", gameResultSchema, "GameResult");
 module.exports = GameResult;
 
