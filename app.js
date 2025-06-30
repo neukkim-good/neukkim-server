@@ -14,6 +14,10 @@ var appleGameRouter = require("./routes/apple-game");
 
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
+
+const jwt = require("jsonwebtoken");
+const SECRET_KEY = "MyJWT";
+
 dotenv.config();
 pw = process.env.PW;
 const DB_URL = `mongodb+srv://feelGood:${pw}@express-mongodb.antwmvy.mongodb.net/neukkim-good`;
@@ -80,13 +84,49 @@ var socket = require("socket.io");
 var io = socket(server);
 
 var port = 3002;
-
+const roomMembers = {};
 io.on("connection", function (socket) {
   console.log("User Join");
+
   socket.on("message", (data) => {
-    console.log("Message received: ", data);
-    socket.broadcast.emit("receive_message", data);
-    console.log(data.token);
+    const { room_id, token, socket_id, message } = data;
+    const decoded = jwt.verify(token, SECRET_KEY);
+    const user_id = decoded._id;
+
+    // 방 입장 처리
+    socket.join(room_id);
+
+    // roomMembers에 추가
+    if (!roomMembers[room_id]) {
+      roomMembers[room_id] = new Set();
+    }
+    roomMembers[room_id].add(user_id);
+
+    // [1] 새로 들어온 사용자에게: 현재 멤버 목록 보내기
+    socket.emit("room_members", {
+      user_ids: Array.from(roomMembers[room_id]),
+    });
+
+    // [2] 기존 사용자들에게: 새 유저 입장 알리기
+    socket.to(room_id).emit("user_joined", {
+      user_id: user_id,
+      socket_id,
+      message,
+    });
+
+    console.log(`[${room_id}] User joined:`, user_id, socket_id);
+  });
+
+  socket.on("start_game", (data) => {
+    const { room_id } = data;
+
+    // 방 전체에게 알림
+    io.to(room_id).emit("game_started");
+    console.log(`게임 시작! 방 ID: ${room_id}`);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
   });
 });
 

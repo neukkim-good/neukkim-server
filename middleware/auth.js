@@ -10,11 +10,11 @@ function authenticate(req, res, next) {
     } else if (req.cookies.authToken) {
       token = req.cookies.authToken;
     }
-    if (token) {
-      console.log("서버가 받은 토큰 (앞 30자):", token.slice(0, 30) + "...");
-    } else {
-      console.log("서버가 받은 토큰: 없음");
-    }
+    // if (token) {
+    //   console.log("서버가 받은 토큰 (앞 30자):", token.slice(0, 30) + "...");
+    // } else {
+    //   console.log("서버가 받은 토큰: 없음");
+    // }
 
     const userPayload = verifyToken(token);
     // --- 여기까지 ---
