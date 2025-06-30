@@ -103,61 +103,37 @@ router.get("/", async function (req, res, next) {
 
     // 4.1 sort 해서 우승자 count 하기
     const gameResults = await GameResult.aggregate([
-      // 1. 유저 정보 붙이기
+      {
+        $sort: {
+          room_id: 1,
+          score: -1, // 방마다 점수 내림차순 정렬
+        },
+      },
+      {
+        $group: {
+          _id: "$room_id",
+          winner: { $first: "$user_id" }, // 이제 가장 점수가 높은 사람이 winner
+          maxScore: { $first: "$score" },
+        },
+      },
       {
         $lookup: {
           from: "User",
-          localField: "user_id",
+          localField: "winner",
           foreignField: "_id",
           as: "user",
         },
       },
       { $unwind: "$user" },
-
-      // 2. room_id 기준으로 모으기
-      {
-        $group: {
-          _id: "$room_id",
-          user_list: {
-            $push: {
-              user_id: "$user_id",
-              nickname: "$user.nickname",
-              score: "$score",
-            },
-          },
-        },
-      },
-
-      // 3. 최고 점수 구하고, 1등들만 필터
-      {
-        $addFields: {
-          maxScore: { $max: "$user_list.score" },
-          winners: {
-            $filter: {
-              input: "$user_list",
-              as: "user",
-              cond: { $eq: ["$$user.score", { $max: "$user_list.score" }] },
-            },
-          },
-        },
-      },
-
-      // 4. 1등 하나만 뽑기 (여러 명이면 첫 번째)
       {
         $project: {
-          winner: { $arrayElemAt: ["$winners", 0] },
+          user_id: "$winner",
+          nickname: "$user.nickname",
+          score: "$maxScore",
         },
       },
-
-      // 5. 정렬을 위해 평탄화
-      {
-        $replaceRoot: { newRoot: "$winner" },
-      },
-
-      // 6. 점수순 정렬
       { $sort: { score: -1 } },
     ]);
-
     // 4.2 승률 계산 배열로 바꿔야함
     const winRateRank = gameResults.reduce((acc, result) => {
       const userId = result.user_id.toString();
@@ -194,6 +170,8 @@ router.get("/", async function (req, res, next) {
           _id: user.user_id,
           user_id: user.user_id,
           nickname: user.nickname,
+          total: total, // 총 게임 수
+          wins: user.wins, // 승리 횟수
           score:
             total > 0 ? parseFloat(((user.wins / total) * 100).toFixed(2)) : 0, // 승률 계산
         };
@@ -204,9 +182,9 @@ router.get("/", async function (req, res, next) {
       dayRank,
       weekRank,
       meanRank,
+      winRateRankArray,
     });
   } catch (err) {
-    console.error(err);
     next(err);
   }
 });
@@ -239,19 +217,6 @@ router.get("/notify", async function (req, res, next) {
           },
         },
       },
-      // 3. Room 컬렉션에서 title 가져오기
-      {
-        $lookup: {
-          from: "Room", // 실제 Room 컬렉션명
-          localField: "_id", // _id가 room_id
-          foreignField: "_id",
-          pipeline: [{ $project: { title: 1, _id: 0 } }],
-          as: "roomInfo",
-        },
-      },
-      { $unwind: "$roomInfo" },
-
-      // 5. user_list 점수 순으로 정렬
       // 3. Room 컬렉션에서 title 가져오기
       {
         $lookup: {
