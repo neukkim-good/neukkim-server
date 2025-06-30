@@ -36,6 +36,23 @@ router.get("/", async function (req, res, next) {
           enteredUser: 0, // joinedParticipants 배열 제거
         },
       },
+      // 이미 플레이 된 게임은 필터
+      {
+        $lookup: {
+          from: "GameResult",
+          localField: "_id",
+          foreignField: "room_id",
+          as: "isPlayed",
+        },
+      },
+      {
+        $match: {
+          $expr: { $eq: [{ $size: "$isPlayed" }, 0] },
+        },
+      },
+      {
+        $project: { isPlayed: 0 }, // 중간 배열 제거
+      },
     ]);
     // console.log(list);
     res.json(list);
