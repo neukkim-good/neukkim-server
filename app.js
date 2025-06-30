@@ -117,6 +117,14 @@ io.on("connection", function (socket) {
     console.log(`[${room_id}] User joined:`, user_id, socket_id);
   });
 
+  socket.on("start_game", (data) => {
+    const { room_id } = data;
+
+    // 방 전체에게 알림
+    io.to(room_id).emit("game_started");
+    console.log(`게임 시작! 방 ID: ${room_id}`);
+  });
+
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });
