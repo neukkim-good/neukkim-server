@@ -204,9 +204,9 @@ router.get("/", async function (req, res, next) {
       dayRank,
       weekRank,
       meanRank,
-      winRateRankArray,
     });
   } catch (err) {
+    console.error(err);
     next(err);
   }
 });
@@ -239,6 +239,19 @@ router.get("/notify", async function (req, res, next) {
           },
         },
       },
+      // 3. Room 컬렉션에서 title 가져오기
+      {
+        $lookup: {
+          from: "Room", // 실제 Room 컬렉션명
+          localField: "_id", // _id가 room_id
+          foreignField: "_id",
+          pipeline: [{ $project: { title: 1, _id: 0 } }],
+          as: "roomInfo",
+        },
+      },
+      { $unwind: "$roomInfo" },
+
+      // 5. user_list 점수 순으로 정렬
       // 3. Room 컬렉션에서 title 가져오기
       {
         $lookup: {

@@ -95,7 +95,7 @@ router.post("/participate/:room_id", async function (req, res, next) {
     user_id: user._id,
   });
   if (existingParticipant) {
-    return res.status(202).json("재입장 했습니다.");
+    return res.status(202).json("reEnter");
   }
 
   // 방이 가득 찬 경우
