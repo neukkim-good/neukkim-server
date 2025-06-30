@@ -36,6 +36,23 @@ router.get("/", async function (req, res, next) {
           enteredUser: 0, // joinedParticipants 배열 제거
         },
       },
+      // 이미 플레이 된 게임은 필터
+      {
+        $lookup: {
+          from: "GameResult",
+          localField: "_id",
+          foreignField: "room_id",
+          as: "isPlayed",
+        },
+      },
+      {
+        $match: {
+          $expr: { $eq: [{ $size: "$isPlayed" }, 0] },
+        },
+      },
+      {
+        $project: { isPlayed: 0 }, // 중간 배열 제거
+      },
     ]);
     // console.log(list);
     res.json(list);
@@ -95,7 +112,7 @@ router.post("/participate/:room_id", async function (req, res, next) {
     user_id: user._id,
   });
   if (existingParticipant) {
-    return res.status(202).json("재입장 했습니다.");
+    return res.status(202).json("reEnter");
   }
 
   // 방이 가득 찬 경우
