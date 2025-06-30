@@ -84,22 +84,31 @@ var socket = require("socket.io");
 var io = socket(server);
 
 var port = 3002;
-
+const roomMembers = {};
 io.on("connection", function (socket) {
   console.log("User Join");
 
   socket.on("message", (data) => {
-    // ready 누르면
     const { room_id, token, socket_id, message } = data;
-
     const decoded = jwt.verify(token, SECRET_KEY);
-    const user_id = decoded._id; // 토큰에서 user_id 추출
+    const user_id = decoded._id;
 
     // 방 입장 처리
     socket.join(room_id);
 
-    // 해당 방의 다른 사용자에게 알림
-    io.to(room_id).emit("user_joined", {
+    // roomMembers에 추가
+    if (!roomMembers[room_id]) {
+      roomMembers[room_id] = new Set();
+    }
+    roomMembers[room_id].add(user_id);
+
+    // [1] 새로 들어온 사용자에게: 현재 멤버 목록 보내기
+    socket.emit("room_members", {
+      user_ids: Array.from(roomMembers[room_id]),
+    });
+
+    // [2] 기존 사용자들에게: 새 유저 입장 알리기
+    socket.to(room_id).emit("user_joined", {
       user_id: user_id,
       socket_id,
       message,
