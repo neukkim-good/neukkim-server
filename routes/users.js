@@ -68,6 +68,22 @@ router.all("/logout", async (req, res, next) => {
   }
 });
 
+router.get("/:id", async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      const error = new Error("User not found");
+      error.status = 404;
+      return next(error);
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500);
+    next(err);
+  }
+});
+
 async function authenticate(req, res, next) {
   let token = req.cookies.authToken;
   let headerToken = req.headers.authorization;
