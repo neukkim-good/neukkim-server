@@ -52,10 +52,10 @@ router.get("/record/today", async function (req, res) {
 
     const recordMaxScore = personalRecord ? personalRecord.score : 0;
 
-    // 4. 내기방 최고 기록 검색
+    // 내기방 최고 기록 검색
     const gameResultRecord = await GameResult.findOne({
       user_id: userId,
-      endTime: { $gte: startOfTodayUTC, $lte: endOfTodayUTC }, // 수정 1: 'time' -> 'endTime'
+      endTime: { $gte: startOfTodayUTC, $lte: endOfTodayUTC },
     }).sort({ score: -1 });
 
     // gameResultRecord 객체에서 score를 추출하고, 결과가 없으면 0으로 처리
@@ -76,17 +76,13 @@ router.get("/record/today", async function (req, res) {
 // 주간 기록
 router.get("/record/weekly", async function (req, res) {
   try {
-    // 1. 사용자 ID 검증 및 ObjectId로 변환
     if (!req.user || !req.user._id) {
       return res
         .status(401)
         .json({ message: "사용자 인증 정보를 찾을 수 없습니다." });
     }
     const userId = new mongoose.Types.ObjectId(req.user._id);
-
-    // 2. UTC 기준 최근 7일 날짜 범위 설정
     const now = new Date();
-    // 오늘의 끝 시각
     const endOfTodayUTC = new Date(
       Date.UTC(
         now.getUTCFullYear(),
@@ -98,14 +94,14 @@ router.get("/record/weekly", async function (req, res) {
         999
       )
     );
-    // 7일 전의 시작 시각 (오늘 제외, 꽉 채운 7일)
+
     const sevenDaysAgoUTC = new Date(endOfTodayUTC);
     sevenDaysAgoUTC.setUTCDate(sevenDaysAgoUTC.getUTCDate() - 7);
     sevenDaysAgoUTC.setUTCHours(0, 0, 0, 0);
 
-    // 3. 개인 기록(Record)과 내기 기록(GameResult)의 주간 통계를 동시에 조회 (Promise.all)
+    // 개인 기록과 내기 기록의 주간 통계를 동시에 조회
     const [personalStats, gameResultStats] = await Promise.all([
-      // 3-1. 개인 기록(Record)의 주간 통계 (최고, 평균)
+      // 개인 기록의 주간 통계 (최고, 합계, 개수)
       Record.aggregate([
         {
           $match: {
@@ -115,13 +111,14 @@ router.get("/record/weekly", async function (req, res) {
         },
         {
           $group: {
-            _id: null, // 모든 결과를 하나의 그룹으로
+            _id: null,
             maxScore: { $max: "$score" },
-            avgScore: { $avg: "$score" },
+            totalScore: { $sum: "$score" },
+            count: { $sum: 1 }, // 개수 계산
           },
         },
       ]),
-      // 3-2. 내기 기록(GameResult)의 주간 통계 (최고, 평균)
+      // 내기 기록(GameResult)의 주간 통계 (최고, 합계, 개수)
       GameResult.aggregate([
         {
           $match: {
@@ -131,49 +128,47 @@ router.get("/record/weekly", async function (req, res) {
         },
         {
           $group: {
-            _id: null, // 모든 결과를 하나의 그룹으로
+            _id: null,
             maxScore: { $max: "$score" },
-            avgScore: { $avg: "$score" },
+            totalScore: { $sum: "$score" },
+            count: { $sum: 1 }, // 개수 계산
           },
         },
       ]),
     ]);
 
-    // 4. 각 통계 결과에서 값 추출 (기록이 없으면 0)
+    // 각 통계 결과에서 값 추출
     const personalMax =
       personalStats.length > 0 ? personalStats[0].maxScore : 0;
-    const personalAvg =
-      personalStats.length > 0 ? personalStats[0].avgScore : 0;
+    const personalTotal =
+      personalStats.length > 0 ? personalStats[0].totalScore : 0;
+    const personalCount = personalStats.length > 0 ? personalStats[0].count : 0;
 
     const gameResultMax =
       gameResultStats.length > 0 ? gameResultStats[0].maxScore : 0;
-    const gameResultAvg =
-      gameResultStats.length > 0 ? gameResultStats[0].avgScore : 0;
+    const gameResultTotal =
+      gameResultStats.length > 0 ? gameResultStats[0].totalScore : 0;
+    const gameResultCount =
+      gameResultStats.length > 0 ? gameResultStats[0].count : 0;
 
-    // 5. 최종 통계 계산
+    // 최종 통계 계산
     const weeklyMaxScore = Math.max(personalMax, gameResultMax);
 
-    // 평균 점수 계산 (기록이 있는 경우에만 평균 계산에 포함)
-    const scoresToAverage = [];
-    if (personalStats.length > 0) scoresToAverage.push(personalAvg);
-    if (gameResultStats.length > 0) scoresToAverage.push(gameResultAvg);
+    const weeklyTotalScore = personalTotal + gameResultTotal;
+    const weeklyTotalCount = personalCount + gameResultCount;
+
     const weeklyAverageScore =
-      scoresToAverage.length > 0
-        ? scoresToAverage.reduce((a, b) => a + b, 0) / scoresToAverage.length
-        : 0;
+      weeklyTotalCount > 0 ? weeklyTotalScore / weeklyTotalCount : 0;
 
     res.status(200).json({
       weeklyMaxScore,
-      weeklyAverageScore: Math.round(weeklyAverageScore), // 소수점 반올림
+      weeklyAverageScore: Math.round(weeklyAverageScore),
     });
   } catch (error) {
     console.error("주간 기록 조회 중 에러 발생:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
-
-// 개인 기록                    내기 기록
-// 2020.10.10.14:00 120점      2020. 10. 10. 14:00 방제목 멤버:() 등수:() 120점
 
 //mypage에서 내 개인기록 가져오기
 router.get("/record", async function (req, res) {
@@ -236,7 +231,7 @@ router.get("/gameresult", async function (req, res) {
         })),
         room_id: roomInfo._id.toString(),
         user_id: userIdObject.toString(),
-        score: myResult.score, // 내 점수 (myScore와 동일)
+        score: myResult.score,
       };
     });
 
